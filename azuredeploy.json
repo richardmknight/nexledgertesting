@@ -423,8 +423,9 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-						"sku": "14.04.5-LTS"
-                    },
+						"sku": "14.04.5-LTS",
+						"version": "latest"        
+						},
                     "osDisk": {
                         "createOption": "fromImage",
                         "managedDisk": {
@@ -474,7 +475,9 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-						"sku": "14.04.5-LTS"
+						"sku": "14.04.5-LTS",
+						"version": "latest"
+
                     },
                     "osDisk": {
                         "createOption": "fromImage",
@@ -524,8 +527,9 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-						"sku": "14.04.5-LTS"
-                    },
+						"sku": "14.04.5-LTS",
+						"version": "latest"
+						},
                     "osDisk": {
                         "createOption": "fromImage",
                         "managedDisk": {
@@ -576,8 +580,9 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-						"sku": "14.04.5-LTS"
-                    },
+						"sku": "14.04.5-LTS",
+						"version": "latest"
+						},
                     "osDisk": {
                         "createOption": "fromImage",
                         "managedDisk": {
