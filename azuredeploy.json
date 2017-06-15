@@ -194,12 +194,7 @@
           }
         }
       }
-	],  
-    "ubuntuImage": {
-      "publisher": "Canonical",
-      "offer": "UbuntuServer",
-      "sku": "14.04.5-LTS",
-    }
+	]
   },
 
   "resources": [
@@ -428,8 +423,7 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-                        "sku": "16.04-LTS",
-                        "version": "latest"
+						"sku": "14.04.5-LTS"
                     },
                     "osDisk": {
                         "createOption": "fromImage",
@@ -480,8 +474,7 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-                        "sku": "16.04-LTS",
-                        "version": "latest"
+						"sku": "14.04.5-LTS"
                     },
                     "osDisk": {
                         "createOption": "fromImage",
@@ -531,8 +524,7 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-                        "sku": "16.04-LTS",
-                        "version": "latest"
+						"sku": "14.04.5-LTS"
                     },
                     "osDisk": {
                         "createOption": "fromImage",
@@ -584,8 +576,7 @@
                     "imageReference": {
                         "publisher": "Canonical",
                         "offer": "UbuntuServer",
-                        "sku": "16.04-LTS",
-                        "version": "latest"
+						"sku": "14.04.5-LTS"
                     },
                     "osDisk": {
                         "createOption": "fromImage",
