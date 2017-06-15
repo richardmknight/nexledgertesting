@@ -1,0 +1,616 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+
+	"parameters": {
+    "namePrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "String used as a base for naming resources (6 alphanumeric characters or less).  A unique hash is prepended to the string for some resources, while resource-specific information is appended."
+      },
+      "maxLength": 12
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "gethadmin",
+      "metadata": {
+        "description": "Administrator username of each deployed VM (alphanumeric characters only)"
+      },
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Administrator password for each deployed VM"
+      },
+      "minLength": 12,
+      "maxLength": 72
+    },
+    "numGeneralNodes": {
+      "type": "int",
+      "defaultValue": 3,
+      "metadata": {
+        "description": "Number of general nodes to create."
+      },
+      "minValue": 3,
+      "maxValue": 20
+    },
+    "generalNodeVMSize": {
+      "type": "string",
+      "defaultValue": "Standard_D1_v2",
+      "allowedValues": [
+        "Standard_D1_v2",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2"
+      ],
+      "metadata": {
+        "description": "Size of the virtual machine used for mining nodes"
+				 }
+	  },
+	  "numMonitoringNodes": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of general nodes to create."
+      },
+      "minValue": 1,
+      "maxValue": 10
+    },
+    "monitoringNodeVMSize": {
+      "type": "string",
+      "defaultValue": "Standard_D1_v2",
+      "allowedValues": [
+        "Standard_D1_v2",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2"
+      ],
+      "metadata": {
+        "description": "Size of the virtual machine used for Monitoring nodes"
+				 }
+	  },
+	  
+	 "numElasticSearchNodes": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of elastic search nodes to create."
+      },
+      "minValue": 1,
+      "maxValue": 1
+    },
+    "elasticSearchNodeVMSize": {
+      "type": "string",
+      "defaultValue": "Standard_D1_v2",
+      "allowedValues": [
+        "Standard_D1_v2",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2"
+      ],
+      "metadata": {
+        "description": "Size of the virtual machine used for Elastic Search nodes"
+				 }
+	  },
+
+	 "numApiNodes": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of API nodes to create."
+      },
+      "minValue": 1,
+      "maxValue": 1
+    },
+    "apiNodeVMSize": {
+      "type": "string",
+      "defaultValue": "Standard_D1_v2",
+      "allowedValues": [
+        "Standard_D1_v2",
+        "Standard_D2_v2",
+        "Standard_D3_v2",
+        "Standard_D4_v2",
+        "Standard_D5_v2"
+      ],
+      "metadata": {
+        "description": "Size of the virtual machine used for API nodes"
+				 }
+	  }
+	 	 
+    },
+	
+    "variables": {
+    "apiVersion": "2016-09-01",
+	"location": "[resourceGroup().location]",
+    "storageAccountType": "Premium_LRS",
+    "namingInfix": "[toLower(substring(concat(parameters('namePrefix'), uniqueString(resourceGroup().id)), 0, 9))]",
+    "availabilitySetName": "[concat(variables('namingInfix'), 'AvSet')]",
+    "sshPort": 22,
+    "loadBalancerName": "[concat(variables('namingInfix'), '-LB')]",
+    "loadBalancerBackendAddressPoolName": "LoadBalancerBackend1",
+    "loadBalancerInboundNatRuleNamePrefix": "SSH-VM",
+	    
+	"maxVMsPerStorageAcct": 50,
+    "mnStorageAcctNames": "[concat(variables('namingInfix'), 'sa')]",
+
+    "generalnodeVMNamePrefix": "[concat(variables('namingInfix'), '-gn')]",
+    "generalnodeNICPrefix": "nic-gn",	
+	
+	"monitoringnodeVMNamePrefix": "[concat(variables('namingInfix'), '-mn')]",
+    "monitoringnodeNICPrefix": "nic-mn",
+	
+	"virtualNetworkName": "[concat(variables('namingInfix'), 'vnet')]",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks', variables('virtualNetworkName'))]",
+
+	
+    "overallAddressSpaceName": "[concat(uniqueString(concat(resourceGroup().id, variables('namingInfix'))))]",
+    "overallAddressSpacePrefix": "10.0.0.0/24",
+		
+	
+    "allMachinesNsgName": "[concat(variables('namingInfix'), 'allmachinesnsg')]",
+	
+    "addressPrefix": "10.0.0.0/16",
+    "overallSubnetNameArray": [
+      "[concat(variables('namingInfix'), 'subnet-txnet')]",
+	  "[concat(variables('namingInfix'), 'subnet-exnetxnet')]",
+	  "[concat(variables('namingInfix'), 'subnet-uxnet')]"
+    ],
+    "overallSubnetPrefixArray": [
+      "10.0.1.0/24",
+      "10.0.2.0/24",
+      "10.0.3.0/24"
+    ],  
+    "numSubnets": 3,
+    "subnetPropertiesArray": [
+      {
+        "name": "[variables('overallSubnetNameArray')[0]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[0]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }
+        }
+      },
+          {
+        "name": "[variables('overallSubnetNameArray')[1]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[1]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }
+        }
+      },
+      {
+        "name": "[variables('overallSubnetNameArray')[2]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[2]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }
+        }
+      }
+	],  
+    "ubuntuImage": {
+      "publisher": "Canonical",
+      "offer": "UbuntuServer",
+      "sku": "16.04.0-LTS",
+      "version": "latest"
+    }
+  },
+
+  "resources": [
+ 
+        {
+            "name": "[variables('allMachinesNsgName')]",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "apiVersion": "2016-09-01",
+			"location": "[resourceGroup().location]",
+			"tags": {
+				"displayName": "NSG - All Machines"
+			},			
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "default-allow-ssh",
+                        "properties": {
+                            "priority": 1000,
+                            "sourceAddressPrefix": "*",
+                            "protocol": "TCP",
+                            "destinationPortRange": "22",
+                            "access": "Allow",
+                            "direction": "Inbound",
+                            "sourcePortRange": "*",
+                            "destinationAddressPrefix": "*"
+                        }
+                    }
+                ]
+            }
+        },
+
+    {
+      "name": "[variables('virtualNetworkName')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+	  "dependsOn": [
+        "[variables('allMachinesNsgName')]"
+      ],
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('addressPrefix')]"
+          ]
+        },
+        "subnets": [
+      {
+        "name": "[variables('overallSubnetNameArray')[0]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[0]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }          
+		  }
+        },
+          {
+        "name": "[variables('overallSubnetNameArray')[1]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[1]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }  
+          }
+        },
+      {
+        "name": "[variables('overallSubnetNameArray')[2]]",
+        "properties": {
+          "addressPrefix": "[variables('overallSubnetPrefixArray')[2]]",
+          "networkSecurityGroup": {
+            "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('allMachinesNsgName'))]"
+          }            }
+        }
+	]
+      }
+    },
+	
+	{
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat('generalnodenic', copyindex())]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "generalNodeNicLoop",
+        "count": "[parameters('numGeneralNodes')]"
+      },
+      "dependsOn": [
+        "[variables('virtualNetworkName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets',variables('virtualNetworkName'),variables('overallSubnetNameArray')[0])]"
+              }            
+			  }
+          }
+        ]
+      }
+    },
+
+
+	{
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat('monitoringnodenic', copyindex())]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "monitoringNodeNicLoop",
+        "count": "[parameters('numMonitoringNodes')]"
+      },
+      "dependsOn": [
+        "[variables('virtualNetworkName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets',variables('virtualNetworkName'),variables('overallSubnetNameArray')[0])]"
+              }            
+			  }
+          }
+        ]
+      }
+    },
+	
+	{
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat('elasticsearchnodenic', copyindex())]",
+      "apiVersion": "2016-03-30",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "elasticSearchNodeNicLoop",
+        "count": "[parameters('numElasticSearchNodes')]"
+      },
+      "dependsOn": [
+        "[variables('virtualNetworkName')]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets',variables('virtualNetworkName'),variables('overallSubnetNameArray')[1])]"
+              }            
+			  }
+          }
+        ]
+      }
+    },
+
+	{
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat('apinodenic', copyindex())]",
+	  "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "apiNodeNicLoop",
+        "count": "[parameters('numApiNodes')]"
+      },
+      "dependsOn": [
+        "[variables('virtualNetworkName')]",
+		"apiPublicIpLoop"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets',variables('virtualNetworkName'),variables('overallSubnetNameArray')[2])]"
+              },
+				"publicIpAddress": {
+				            "id": "[resourceId('Microsoft.Network/publicIpAddresses',concat('apipublicipaddress', copyindex()))]"
+                            }
+			  }
+          }
+        ]
+      }
+    },	
+
+	{
+      "type": "Microsoft.Network/publicIpAddresses",
+      "name": "[concat('apipublicipaddress', copyindex())]",
+      "apiVersion": "2016-09-01",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "apiPublicIpLoop",
+        "count": "[parameters('numApiNodes')]"
+      },
+            "properties": {
+                "publicIpAllocationMethod": "Dynamic"
+            }
+    },
+	
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat('generalnode', copyIndex())]",
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "genralNodeVirtualMachineLoop",
+        "count": "[parameters('numGeneralNodes')]"
+      },
+      "dependsOn": [
+        "generalNodeNicLoop"
+      ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[concat('generalnode', copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('generalNodeVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('generalnodenic', copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            }
+    },
+
+
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat('elasticsearchnode', copyIndex())]",
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "elasticSearchNodeVirtualMachineLoop",
+        "count": "[parameters('numElasticSearchNodes')]"
+      },
+      "dependsOn": [
+        "elasticSearchNodeNicLoop"
+      ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[concat('elasticsearchnode', copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('elasticSearchNodeVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('elasticsearchnodenic', copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            }
+    },
+
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat('monitoringnode', copyIndex())]",
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "monitoringNodeVirtualMachineLoop",
+        "count": "[parameters('numMonitoringNodes')]"
+      },
+      "dependsOn": [
+        "monitoringNodeNicLoop"
+      ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[concat('monitoringnode', copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('monitoringNodeVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('monitoringnodenic', copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            }
+    },
+	
+
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat('apinode', copyIndex())]",
+      "apiVersion": "2016-04-30-preview",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "apiNodeVirtualMachineLoop",
+        "count": "[parameters('numApiNodes')]"
+      },
+      "dependsOn": [
+        "apiNodeNicLoop",
+		"apiPublicIpLoop"
+      ],
+            "properties": {
+                "osProfile": {
+                    "computerName": "[concat('apinode', copyIndex())]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "hardwareProfile": {
+                    "vmSize": "[parameters('apiNodeVMSize')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "Canonical",
+                        "offer": "UbuntuServer",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "fromImage",
+                        "managedDisk": {
+                            "storageAccountType": "Standard_LRS"
+                        }
+                    },
+                    "dataDisks": []
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat('apinodenic', copyindex()))]"
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            }
+    }	
+	
+	
+  ]
+}
